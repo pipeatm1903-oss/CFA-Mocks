@@ -6,6 +6,7 @@ const App = {
     Sync.load();
     this.el = document.getElementById('app');
     await loadBank();
+    await loadPractice();
     window.addEventListener('hashchange', () => this.route());
     this.route();
     document.addEventListener('visibilitychange', () => {
@@ -17,44 +18,79 @@ const App = {
   async pullAndRefresh() {
     if (!Sync.enabled()) return;
     const changed = await Sync.syncNow();
-    if (changed && !Exam.root && BANK) this.route();
+    if (changed && !Exam.root && !PQuiz.root) this.route();
   },
   route() {
-    if (Exam.root) return;
+    if (Exam.root || PQuiz.root) return;
     if (Sync.enabled() && Date.now() - (this._lastPull || 0) > 15000) { this._lastPull = Date.now(); setTimeout(() => this.pullAndRefresh(), 0); }
     const h = location.hash || '#/';
-    if (!BANK) return this.renderImport();
-    if (h.startsWith('#/tracker')) return this.renderTracker();
-    if (h.startsWith('#/result/')) return this.renderResult(h.split('/')[2]);
-    return this.renderHome();
+    if (h.startsWith('#/practice')) return Practice.route(h);
+    if (h.startsWith('#/mocks')) {
+      if (!BANK) return this.renderImport('mocks');
+      if (h.startsWith('#/mocks/tracker')) return this.renderTracker();
+      if (h.startsWith('#/mocks/result/')) return this.renderResult(h.split('/')[3]);
+      return this.renderHome();
+    }
+    return this.renderLauncher();
   },
-  shell(active, inner) {
+  shell(section, active, inner) {
+    if (inner === undefined) { inner = active; active = section; section = 'mocks'; }
+    const tabs = section === 'practice'
+      ? [['#/practice', 'ptopics', 'book', 'Topics'], ['#/practice/custom', 'pcustom', 'gear', 'Custom Quiz'], ['#/practice/tracker', 'ptracker', 'chart', 'Performance Tracker']]
+      : section === 'mocks' ? [['#/mocks', 'home', 'home', 'Mock Exams'], ['#/mocks/tracker', 'tracker', 'chart', 'Performance Tracker']] : [];
+    const sub = section === 'practice' ? 'Practice Questions 2027' : section === 'mocks' ? 'Mock Exams 2026' : 'Level I · Febrero 2027';
     this.el.innerHTML = `
       <div class="topbar"><div class="wrap">
-        <div class="brand"><div class="mark">L I</div><div><div class="t1">CFA Mock Exams 2026</div><div class="t2">Level I · Simulador Prometric</div></div></div>
-        <nav class="tabs">
-          <button type="button" data-h="#/" class="${active === 'home' ? 'on' : ''}">${icon('home')} Mock Exams</button>
-          <button type="button" data-h="#/tracker" class="${active === 'tracker' ? 'on' : ''}">${icon('chart')} Performance Tracker</button>
-        </nav><span class="sync-badge"></span></div></div>
+        <a class="brand" href="#/"><div class="mark">L I</div><div><div class="t1">CFA Level I</div><div class="t2">${sub}</div></div></a>
+        <nav class="tabs">${tabs.map(([h, k, ic, l]) => `<button type="button" data-h="${h}" class="${active === k ? 'on' : ''}">${icon(ic)} ${l}</button>`).join('')}</nav><span class="sync-badge"></span></div></div>
       <main class="wrap">${inner}</main>`;
     Sync.paint();
     this.el.querySelectorAll('.tabs button').forEach(b => b.onclick = () => { location.hash = b.dataset.h; });
     window.scrollTo(0, 0);
   },
 
+  /* ---------------- launcher ---------------- */
+  renderLauncher() {
+    const atts = Store.data.attempts;
+    const mavg = atts.length ? atts.reduce((x, a) => x + attemptTotals(a).pct, 0) / atts.length : null;
+    const g = PBANK ? PS.global() : null;
+    const cur = Store.data.current, pcur = Store.data.practice.current;
+    this.shell('none', '', `
+      <div class="launch">
+        <button class="lside" type="button" data-h="#/mocks">
+          <span class="eyebrow">Simulación de examen</span>
+          <span class="lnum">${BANK ? Object.keys(BANK.mocks).length : 8}</span>
+          <span class="ltitle">Mock Exams 2026</span>
+          <span class="ldesc">Exámenes completos de 180 preguntas con la interfaz de Prometric, 2 sesiones de 2 h 15 min.</span>
+          <span class="lstats">${BANK ? `<span><b>${atts.length}</b> ${atts.length === 1 ? 'mock hecho' : 'mocks hechos'}</span><span>Media <b>${mavg == null ? '—' : pct(mavg)}</b></span>` : '<span>Pendiente de cargar las preguntas</span>'}</span>
+          ${cur ? `<span class="lcur">${icon('play')} Mock ${cur.mock} en curso</span>` : ''}
+          <span class="lgo">Entrar ${icon('chevR')}</span>
+        </button>
+        <button class="lside alt" type="button" data-h="#/practice">
+          <span class="eyebrow">Estudio por reading</span>
+          <span class="lnum">${PBANK ? PBANK.readings.length : 102}</span>
+          <span class="ltitle">Practice Questions 2027</span>
+          <span class="ldesc">Las preguntas oficiales de práctica por topic y reading, en modo estudio, con custom quiz.</span>
+          <span class="lstats">${g ? `<span><b>${g.done.toLocaleString('es-ES')}</b>/${g.n.toLocaleString('es-ES')} respondidas</span><span>Acierto <b>${accTxt(g.acc)}</b></span>` : '<span>Pendiente de cargar las preguntas</span>'}</span>
+          ${pcur ? `<span class="lcur">${icon('play')} Quiz en curso</span>` : ''}
+          <span class="lgo">Entrar ${icon('chevR')}</span>
+        </button>
+      </div>`);
+    this.el.querySelectorAll('.lside').forEach(b => b.onclick = () => { location.hash = b.dataset.h; });
+  },
+
   /* ---------------- import ---------------- */
-  renderImport() {
-    this.el.innerHTML = `
-      <div class="topbar"><div class="wrap"><div class="brand"><div class="mark">L I</div><div><div class="t1">CFA Mock Exams 2026</div><div class="t2">Level I · Simulador Prometric</div></div></div></div></div>
-      <main class="wrap"><div class="import" id="drop">
-        <h2>Carga las preguntas de los mocks</h2>
-        <p>Selecciona el archivo <b>mocks-cfa-2026.json</b>. Solo hace falta una vez: las preguntas se quedan guardadas en este ordenador y nunca se suben a internet.</p>
+  renderImport(kind = 'mocks') {
+    const file = kind === 'practice' ? 'practice-cfa-2027.json' : 'mocks-cfa-2026.json';
+    this.shell(kind, '', `<div class="import" id="drop">
+        <h2>Carga las preguntas ${kind === 'practice' ? 'de Practice 2027' : 'de los mocks'}</h2>
+        <p>Selecciona el archivo <b>${file}</b>. Solo hace falta una vez: las preguntas se quedan guardadas en este ordenador y nunca se suben a internet.</p>
         <label class="btn">${icon('upload')} Elegir archivo<input type="file" accept=".json,application/json" hidden></label>
         <div class="err" hidden></div>
-      </div></main>`;
+      </div>`);
     const inp = this.el.querySelector('input[type=file]'), drop = this.el.querySelector('#drop'), err = this.el.querySelector('.err');
     const handle = async f => {
-      try { await importBank(f); this.route(); }
+      try { await importAnyBank(f); this.route(); }
       catch (e) { err.hidden = false; err.textContent = e.message || 'No se pudo leer el archivo.'; }
     };
     inp.onchange = () => inp.files[0] && handle(inp.files[0]);
@@ -110,8 +146,8 @@ const App = {
     this.el.innerHTML = '';
     Exam.open(res => {
       Sync.flush();
-      if (res && res.finished) location.hash = '#/result/' + res.finished;
-      else location.hash = '#/';
+      if (res && res.finished) location.hash = '#/mocks/result/' + res.finished;
+      else location.hash = '#/mocks';
       this.route();
     });
   },
@@ -119,7 +155,7 @@ const App = {
   /* ---------------- results / review ---------------- */
   renderResult(id) {
     const att = Store.data.attempts.find(a => a.id === id);
-    if (!att) { location.hash = '#/tracker'; return; }
+    if (!att) { location.hash = '#/mocks/tracker'; return; }
     const T = attemptTotals(att);
     const s1 = att.s[1] ? scoreSession(att.mock, 1, att.s[1].ans) : 0;
     const s2 = att.s[2] ? scoreSession(att.mock, 2, att.s[2].ans) : 0;
@@ -140,7 +176,7 @@ const App = {
       <div class="panel"><h3>Nota por área</h3><div class="hint">Porcentaje de aciertos en cada área del temario en este intento.</div>${this.areaBars(ts)}</div>
       <div class="rv-bar"><div class="seg sess"></div><div class="seg filt"></div></div>
       <div id="qlist"></div>`);
-    this.el.querySelector('[data-a=back]').onclick = () => history.length > 1 ? history.back() : (location.hash = '#/tracker');
+    this.el.querySelector('[data-a=back]').onclick = () => history.length > 1 ? history.back() : (location.hash = '#/mocks/tracker');
     this.renderReviewList(att);
   },
   renderReviewList(att) {
@@ -251,7 +287,7 @@ const App = {
         <button class="btn danger" data-a="wipe">${icon('trash')} Borrar historial</button>
       </div>`);
     this.evoChart(this.el.querySelector('#evo'), rows);
-    this.el.querySelectorAll('tr.click').forEach(tr => tr.onclick = () => { this.rv = null; location.hash = '#/result/' + tr.dataset.id; });
+    this.el.querySelectorAll('tr.click').forEach(tr => tr.onclick = () => { this.rv = null; location.hash = '#/mocks/result/' + tr.dataset.id; });
     const sb = this.el.querySelector('[data-a=sync]');
     if (sb) sb.onclick = async () => {
       const inp = this.el.querySelector('.tokrow input'), err = this.el.querySelector('.syncp .err');
@@ -275,7 +311,7 @@ const App = {
     };
     this.el.querySelector('[data-a=bank]').onchange = async e => {
       const f = e.target.files[0]; if (!f) return;
-      try { await importBank(f); alert('Preguntas actualizadas.'); this.renderTracker(); } catch (er) { alert(er.message); }
+      try { const k = await importAnyBank(f); alert(k === 'practice' ? 'Preguntas de Practice actualizadas.' : 'Preguntas de los mocks actualizadas.'); this.renderTracker(); } catch (er) { alert(er.message); }
     };
     this.el.querySelector('[data-a=wipe]').onclick = () => {
       if (confirm('¿Borrar todo el historial de intentos? Exporta antes una copia si quieres conservarlo.')) { Store.data.deleted.push(...Store.data.attempts.map(a => a.id)); Store.data.attempts = []; Store.save(); this.renderTracker(); }
@@ -320,7 +356,7 @@ const App = {
         cross.setAttribute('x1', x(i)); cross.setAttribute('x2', x(i)); cross.setAttribute('opacity', 1);
       };
       h.onmouseleave = () => { tip.style.opacity = 0; cross.setAttribute('opacity', 0); };
-      h.onclick = () => { this.rv = null; location.hash = '#/result/' + rows[+h.dataset.i].a.id; };
+      h.onclick = () => { this.rv = null; location.hash = '#/mocks/result/' + rows[+h.dataset.i].a.id; };
       h.style.cursor = 'pointer';
     });
   },

@@ -210,3 +210,32 @@ mark.hl{background:#ffff00;color:inherit;padding:0}
 .exam-root.themed .opt.sel .box{outline-width:3px}
 .exam-root.themed .item .stem td{border-color:var(--th-tx)}
 .exam-root.themed mark.hl{background:#ffff00;color:#000}
+
+/* ---------- practice study mode ---------- */
+.pq .ex-details .rtag{opacity:.75;font-weight:400}
+.pq .timer-button{cursor:default}
+.pq .item img{max-width:min(100%,640px);height:auto}
+.pq .item math{font-size:1.05em}
+.pq .item math[display=block]{margin:8px 0}
+.pq .item details summary{font-size:13px;color:#555;cursor:pointer}
+.pq .item .stem table,.pq .item .explain table{border-collapse:collapse;margin:6px 0 12px;background:#fff}
+.pq .item td,.pq .item th{border:1px solid #9a9a9a;padding:5px 9px;vertical-align:top;text-align:left}
+.pq .item th{background:#eef1f3}
+.answer-options.locked .opt{cursor:default}
+.answer-options.locked .opt:hover .box{background:#fff}
+.opt.ok .box,.answer-options.locked .opt.ok:hover .box{border-color:#2f7d1f;background:#eef7e9;outline:2px solid #2f7d1f;outline-offset:-5px}
+.opt.ko .box,.answer-options.locked .opt.ko:hover .box{border-color:#b3261e;background:#fbecea;outline:2px solid #b3261e;outline-offset:-5px}
+.opt.ok .letter{color:#2f7d1f;font-weight:700}.opt.ko .letter{color:#b3261e;font-weight:700}
+.opt .ofb{margin-top:8px;padding-top:8px;border-top:1px dashed #9aa;font-size:14px;line-height:20px;color:#333}
+.opt .ofb p{margin:0 0 6px}
+.verdict-bar{display:flex;align-items:center;gap:10px;margin:14px 0 0 27px;padding:10px 14px;font-family:"Open Sans",sans-serif;font-size:15px;color:#fff}
+.verdict-bar .ico{width:16px;height:16px}
+.verdict-bar.good{background:#2f7d1f}.verdict-bar.bad{background:#b3261e}
+.verdict-bar span{margin-left:auto;font-weight:600}
+.explain{margin:0 0 0 27px;padding:14px 16px;background:#f5f7f8;border-left:4px solid var(--grn);line-height:22px;font-size:15px}
+.explain .eh{font-family:"Open Sans",sans-serif;font-weight:700;font-size:12px;letter-spacing:1px;text-transform:uppercase;color:#4d4c4d;margin-bottom:6px}
+.explain p{margin:0 0 8px}
+.nav-button .res{position:absolute;right:7px;top:50%;margin-top:-3.5px;width:7px;height:7px;border-radius:50%;display:none}
+.nav-button .res.good{display:block;background:#9be36c}
+.nav-button .res.bad{display:block;background:#ff7b6e}
+.pq .nav-button.nav-flagged .fl{left:auto;right:18px}

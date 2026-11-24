@@ -53,7 +53,7 @@ const Sync = {
 
   payload() {
     const d = Store.data;
-    return JSON.stringify({ format: 'cfa-mocks-sync', v: 1, savedAt: d.savedAt || 0, attempts: d.attempts, current: d.current, topicOverrides: d.topicOverrides, prefs: d.prefs, deleted: d.deleted || [] });
+    return JSON.stringify({ format: 'cfa-mocks-sync', v: 1, savedAt: d.savedAt || 0, attempts: d.attempts, current: d.current, topicOverrides: d.topicOverrides, prefs: d.prefs, deleted: d.deleted || [], practice: d.practice });
   },
 
   async pull() {
@@ -83,11 +83,28 @@ const Sync = {
     const done = new Set(attempts.map(a => a.id));
     const cands = [L.current, remote.current].filter(c => c && !done.has(c.id) && !deleted.includes(c.id));
     const current = cands.sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0] || null;
-    Object.assign(L, { deleted, attempts, topicOverrides, prefs, current, savedAt: Math.max(L.savedAt || 0, remote.savedAt || 0) });
+    // practice: answer log merged by timestamp, sessions by id, quiz in progress by last save
+    const LP = L.practice, RP = remote.practice || { log: {}, sessions: [], current: null };
+    const log = {};
+    new Set([...Object.keys(LP.log || {}), ...Object.keys(RP.log || {})]).forEach(q => {
+      const m = new Map();
+      [...((RP.log || {})[q] || []), ...((LP.log || {})[q] || [])].forEach(e => m.set(e[0] + ':' + e[1], e));
+      log[q] = [...m.values()].sort((a, b) => a[0] - b[0]);
+    });
+    const ps = new Map();
+    [...(RP.sessions || []), ...(LP.sessions || [])].forEach(x => { if (!deleted.includes(x.id)) ps.set(x.id, x); });
+    const pdone = new Set(ps.keys());
+    const pc = [LP.current, RP.current].filter(c => c && !pdone.has(c.id) && !deleted.includes(c.id)).sort((a, b) => (b.savedAt || 0) - (a.savedAt || 0))[0] || null;
+    const practice = { log, sessions: [...ps.values()].sort((a, b) => a.finishedAt.localeCompare(b.finishedAt)), current: pc };
+    Object.assign(L, { deleted, attempts, topicOverrides, prefs, current, practice, savedAt: Math.max(L.savedAt || 0, remote.savedAt || 0) });
     Store.save(true);
     return this.fingerprint(L) !== before;
   },
-  fingerprint(d) { return JSON.stringify([d.attempts.map(a => a.id), d.current && [d.current.id, d.current.savedAt], d.topicOverrides, d.deleted]); },
+  fingerprint(d) {
+    const p = d.practice || {};
+    return JSON.stringify([d.attempts.map(a => a.id), d.current && [d.current.id, d.current.savedAt], d.topicOverrides, d.deleted,
+      Object.values(p.log || {}).reduce((n, l) => n + l.length, 0), (p.sessions || []).map(x => x.id), p.current && [p.current.id, p.current.savedAt]]);
+  },
 
   /* pull + merge + push. Returns true if local data changed. */
   async syncNow() {
@@ -113,7 +130,7 @@ const Sync = {
   /* called after every local save: debounce pushes (max one per minute while in an exam) */
   schedule() {
     if (!this.enabled()) return;
-    const inExam = !!Exam.root;
+    const inExam = !!Exam.root || !!PQuiz.root;
     if (inExam && this._timer) return; // keep the pending push; don't postpone it forever
     clearTimeout(this._timer);
     const wait = inExam ? Math.max(5000, 60000 - (Date.now() - this._lastPush)) : 3000;

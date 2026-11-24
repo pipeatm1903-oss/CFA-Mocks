@@ -78,6 +78,36 @@ async function importBank(file) {
 }
 function getQuestions(mock, session) { return BANK.mocks[String(mock)][String(session)]; }
 
+/* ---------------- Practice bank (CFA 2027 practice questions) ---------------- */
+let PBANK = null; // { readings: [{ r, t, title, qs: [...] }] }
+const PTOPICS = [
+  { k: 'QM', name: 'Quantitative Methods' }, { k: 'EC', name: 'Economics' }, { k: 'CF', name: 'Corporate Finance' },
+  { k: 'FSA', name: 'Financial Statement Analysis' }, { k: 'EQ', name: 'Equities' }, { k: 'FI', name: 'Fixed Income' },
+  { k: 'DER', name: 'Derivatives' }, { k: 'ALT', name: 'Alternative Investments' }, { k: 'PM', name: 'Portfolio Construction' },
+  { k: 'ETH', name: 'Ethical and Professional Standards' },
+];
+const PTOPIC_NAME = Object.fromEntries(PTOPICS.map(t => [t.k, t.name]));
+function validPractice(j) { return j && j.format === 'cfa-practice' && Array.isArray(j.readings) && j.readings.length > 0; }
+async function loadPractice() {
+  try { PBANK = await DB.get('practice'); } catch (e) { PBANK = null; }
+  if (!PBANK) {
+    try {
+      const r = await fetch('data/practice-cfa-2027.json', { cache: 'no-store' });
+      if (r.ok) { const j = await r.json(); if (validPractice(j)) { PBANK = j; await DB.set('practice', j); } }
+    } catch (e) { /* not present */ }
+  }
+  return PBANK;
+}
+/* Import either data file; returns 'mocks' or 'practice' */
+async function importAnyBank(file) {
+  const j = JSON.parse(await file.text());
+  if (validBank(j)) { await DB.set('bank', j); BANK = j; return 'mocks'; }
+  if (validPractice(j)) { await DB.set('practice', j); PBANK = j; return 'practice'; }
+  throw new Error('El archivo no es de preguntas de esta app (mocks-cfa-2026.json o practice-cfa-2027.json).');
+}
+function reading(r) { return PBANK.readings.find(x => x.r === r); }
+function pq(qid) { const [r, i] = qid.split('-').map(Number); return reading(r).qs[i]; }
+
 /* ---------------- localStorage state ---------------- */
 const LS_KEY = 'cfaMockExams.v1';
 const Store = {
@@ -90,12 +120,17 @@ const Store = {
     this.data.topicOverrides ||= {};
     this.data.prefs ||= { theme: null };
     this.data.deleted ||= [];
+    this.data.practice ||= {};
+    this.data.practice.log ||= {};        // qid -> [[timestamp, answerIdx, correct(0/1), seconds]]
+    this.data.practice.sessions ||= [];   // finished quizzes
+    this.data.practice.current ||= null;  // quiz in progress
     return this.data;
   },
   save(fromSync) {
     if (!fromSync) {
       this.data.savedAt = Date.now();
       if (this.data.current) this.data.current.savedAt = this.data.savedAt;
+      if (this.data.practice && this.data.practice.current) this.data.practice.current.savedAt = this.data.savedAt;
     }
     try { localStorage.setItem(LS_KEY, JSON.stringify(this.data)); }
     catch (e) { console.error('No se pudo guardar', e); }

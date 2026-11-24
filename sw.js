@@ -1,6 +1,6 @@
-const CACHE = 'cfa-mocks-v2';
+const CACHE = 'cfa-mocks-v4';
 const FILES = ['./', 'index.html', 'manifest.webmanifest', 'css/fonts.css', 'css/app.css', 'css/exam.css',
-  'js/icons.js', 'js/store.js', 'js/sync.js', 'js/exam.js', 'js/app.js', 'icons/icon-192.png', 'icons/icon-512.png',
+  'js/icons.js', 'js/store.js', 'js/sync.js', 'js/exam.js', 'js/practice.js', 'js/app.js', 'icons/icon-192.png', 'icons/icon-512.png',
   'fonts/open-sans-latin-400-normal.woff2', 'fonts/open-sans-latin-400-italic.woff2', 'fonts/open-sans-latin-500-normal.woff2',
   'fonts/open-sans-latin-600-normal.woff2', 'fonts/open-sans-latin-600-italic.woff2', 'fonts/open-sans-latin-700-normal.woff2', 'fonts/open-sans-latin-700-italic.woff2'];
 self.addEventListener('install', e => { e.waitUntil(caches.open(CACHE).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
